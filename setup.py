@@ -6,7 +6,7 @@ with open('README.md', 'r') as readme:
 
 setup(
     name="aiotp",
-    version='1.0.0',
+    version='1.0.1',
     description="One-time password package in Python",
 
     long_description=readme,

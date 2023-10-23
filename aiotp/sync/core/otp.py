@@ -1,7 +1,7 @@
 
 import hmac
+import struct
 import base64
-import hashlib
 
 from ...typing import algorithms
 from ...abstracts import AbstractSyncOTP
@@ -22,36 +22,18 @@ class OTP(AbstractSyncOTP):
         self.algorithm = algorithm
 
     def _generate(self, integer: int) -> str:
-        int2byte = bytearray()
-        secret = self.secret
-
         if integer < 0:
             raise ValueError('input must be positive integer')
 
-        padding = len(secret) % 8
-        if padding != 0:
-            secret += '=' * (8 - padding)
+        int2bytes = struct.pack('>q', integer)
 
-        b_secret = base64.b32decode(secret, casefold=True)
-
-        while integer != 0:
-            int2byte.append(integer & 0xFF)
-            integer >>= 8
-
-        int2bytestring = bytes(bytearray(reversed(int2byte))).rjust(8, b'\0')
-
-        algorithm = getattr(hashlib, self.algorithm)
-        hash_hmac = bytearray(hmac.new(b_secret, int2bytestring, algorithm).digest())
+        b_secret = base64.b32decode(self.secret + '=' * ((8 - len(self.secret)) % 8), casefold=True)
+        
+        hash_hmac = hmac.new(b_secret, int2bytes, self.algorithm).digest()
 
         offset = hash_hmac[-1] & 0xF
 
-        code = (
-            (hash_hmac[offset] & 0x7F) << 24
-            | (hash_hmac[offset + 1] & 0xFF) << 16
-            | (hash_hmac[offset + 2] & 0xFF) << 8
-            | (hash_hmac[offset + 3] & 0xFF)
-        )
+        code_bytes = hash_hmac[offset:offset + 4]
+        code = str(struct.unpack('>l', code_bytes)[0] & 0X7FFFFFFF)
 
-        s_code = str(10000000000 + (code % 10 ** self.digit))
-
-        return s_code[-self.digit:]
+        return code[-self.digit:].zfill(self.digit)
